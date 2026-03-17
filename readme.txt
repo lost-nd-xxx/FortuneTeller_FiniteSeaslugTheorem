@@ -60,6 +60,11 @@ https://ms.shillest.net/yayame.xhtml
 https://ms.shillest.net/housekeeper/html/zz_other_ayalilith.xhtml
 
 
+★二次創作などについて★
+以下のページをご一読ください。
+https://lnx.flop.jp/about.html#rule
+
+
 ★制作中のAI利用について★
 このゴーストの制作には、生成AIを利用しています。
 Claude Code（Anthropic）を占いの文言・機能およびトークの作成に使用しました。
