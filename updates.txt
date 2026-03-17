@@ -1,6 +1,6 @@
 charset,UTF-8
 file,developer_options.txt878ad339b4a6597d7fa36a596ade42b3size=45date=2012-12-21T00:00:00
-file,ghost/master/descript.txt8c5f7dfaaa7b2efbeb75b107a23a19besize=290date=2012-12-21T00:00:00
+file,ghost/master/descript.txt159451331817ff66aa6bdfebd06e86d9size=323date=2012-12-21T00:00:00
 file,ghost/master/dic/emerg/yaya_emerg_dic.dic1a66f10677010c556c349fa74327dba7size=549date=2012-12-21T00:00:00
 file,ghost/master/dic/normal/yaya_aitalk.dicc12d31fba44310c3afe76c204731ff60size=25333date=2012-12-21T00:00:00
 file,ghost/master/dic/normal/yaya_bootend.dic2ba9b75deef62c86fa614c6c741d8cbbsize=8043date=2012-12-21T00:00:00
