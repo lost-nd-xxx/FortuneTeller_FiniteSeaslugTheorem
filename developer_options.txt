@@ -1,0 +1,2 @@
+.github/,nonar,noupdate
+.git/,nonar,noupdate

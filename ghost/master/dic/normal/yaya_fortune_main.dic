@@ -1,0 +1,1250 @@
+//********************************
+// 占いメイン
+//********************************
+
+// サーフェス番号については ghost/surfaces_memo.txt を参照
+
+On占いトップメニュー
+{
+	// カード選択待機状態を解除
+	Fortune_DrawWaiting = 0
+	// マウスに対する反応＆キー押下に対する反応を止めるフラグ
+	割り込み防止フラグ = 0
+
+	<<"
+	＠スクリプト：\![close,inputbox,__SYSTEM_ALL_INPUT__]\n[150]
+	＠メニュー：占い/ワンオラクル｜OnFortune_One_Start
+	＠メニュー：占い/スリーカード｜OnFortune_Three_Start
+	＠メニュー：占いについて教えて｜On占いについて教えて
+	＠メニュー：占いの履歴を見せて｜On占いの履歴を見せて
+	＠スクリプト：\_l[0,0]\n[800]
+	＠メニュー：おしまい｜Menu_CANCEL
+	ぷ１１４：\_l[0,0]占い、やるミャ？
+	">>
+}
+
+//********************************
+// 解説
+//********************************
+On占いについて教えて
+{
+	<<"
+	ぷ１１０：ぷーの占いについてミャね。
+	改行多めぷ：まず最初に言っておくと、
+	ぷ：これはタロットとかとは違うミャ。
+	ぷ１２０：スピリチュアルな力とか、そういうのは無いミャ。
+	ぷ１１０：色と季節を組み合わせた、
+	ぷ：ぷーオリジナルのカードなのミャ。
+	改行多めぷ１６０：……つまり、偽物の占いミャ。
+	ぷ１１３：でも、偽物には偽物のやり方があるのミャ。
+	改行多めぷ１１０：プラセボって知ってるミャ？
+	ぷ：偽のお薬のことミャ。
+	ぷ：効き目は無いけど、
+	ぷ１２０：飲んだら気持ちが楽になることもある。
+	改行多めぷ１１３：ぷーの占いも、そういうものミャ。
+	ぷ１１０：当たるか当たらないかじゃミャくて、
+	ぷ：日々を越えるための杖みたいなもの。
+	改行多めぷ１６３：（ユーザ）の気分が少しでもアガれば、
+	ぷ：ぷーはそれでいいミャ。
+	＠スクリプト：\x\![raise,On占いトップメニュー]
+	">>
+}
+
+//********************************
+// 履歴
+//********************************
+On占いの履歴を見せて
+{
+	Fortune_HistoryPage = 0
+	'\![raise,OnFortune_HistoryPage]'
+}
+
+OnFortune_HistoryPage
+{
+	_size = ARRAYSIZE(Fortune_History_Time)
+
+	if _size == 0 {
+		_talk = '\0\s[120]\c\_q'
+		_talk += 'まだ何も残ってないミャ。'
+		_talk += '\n[900]\![*]\q[戻る　　　　　　　　,On占いトップメニュー]'
+		_talk
+		return
+	}
+
+	_perpage = 6
+	_maxpage = (_size - 1) / _perpage
+	_page = Fortune_HistoryPage
+	if _page < 0 {
+		_page = 0
+	}
+	if _page > _maxpage {
+		_page = _maxpage
+	}
+
+	_talk = '\0\s[113]\c\_q'
+	_talk += '占いの記録ミャ。'
+	_talk += '\n\_n\f[color,disable]────────────────────\f[default]\_n\n'
+
+	// 新しい順に表示（配列の末尾が最新）
+	// ページに応じた範囲を計算
+	_start = _size - 1 - (_page * _perpage)
+	_end = _start - _perpage + 1
+	if _end < 0 {
+		_end = 0
+	}
+
+	for _i=_start; _i>=_end; _i-- {
+		_date = FormatHistoryDate(Fortune_History_Time[_i])
+		_type = '[1]'
+		if Fortune_History_Type[_i] == '3' {
+			_type = '[3]'
+		}
+		_subj = Fortune_History_Subject[_i]
+		if _subj == '' {
+			_subj = '(無題)'
+		}
+
+		_talk += '\![*]\__q[OnFortune_HistoryDetail,' + TOSTR(_i) + ']'
+
+		_list_title = _date + ' ' + _type + ' ' + _subj
+		_talk += SHIORI3FW.MakeJustText(_list_title, 38)
+
+		_talk += '\__q\n'
+	}
+
+	_talk += '\_l[0,0]\n[800]\_n\f[color,disable]────────────────────\f[default]\_n\n'
+
+	// ページ送りボタンとページ位置
+	if _page > 0 {
+		_talk += '\__q[OnFortune_HistoryPagePrev][＜前]\__q '
+	}
+	else {
+		_talk += '\f[color,disable][＜前]\f[default] '
+	}
+	_talk += '(' + TOSTR(_page+1) + '/' + TOSTR(_maxpage+1) + ') '
+	if _page < _maxpage {
+		_talk += '\__q[OnFortune_HistoryPageNext][次＞]\__q '
+	}
+	else {
+		_talk += '\f[color,disable][次＞]\f[default] '
+	}
+
+	_talk += '\![*]\q[戻る　　,On占いトップメニュー] '
+	_talk += '\![*]\q[削除　　,OnFortune_HistoryDeleteMode]'
+	_talk
+}
+
+OnFortune_HistoryPagePrev
+{
+	Fortune_HistoryPage = Fortune_HistoryPage - 1
+	'\![raise,OnFortune_HistoryPage]'
+}
+
+OnFortune_HistoryPageNext
+{
+	Fortune_HistoryPage = Fortune_HistoryPage + 1
+	'\![raise,OnFortune_HistoryPage]'
+}
+
+OnFortune_HistoryDetail
+{
+	_idx = TOINT(reference[0])
+
+	// じっくり読めるように'\*'を入れる
+	_talk = '\*\0\s[113]\c\_q'
+
+	_subj = Fortune_History_Subject[_idx]
+	if _subj == '' {
+		_subj = '(無題)'
+	}
+	_talk += '■ ' + _subj + '\n'
+	_talk += FormatFullDate(Fortune_History_Time[_idx]) + '\n'
+	_talk += '\_n\f[color,disable]────────────────────\f[default]\_n\n'
+
+	if Fortune_History_Type[_idx] == '1' {
+		_talk += 'ワンオラクル\n[150]'
+		_card = Fortune_History_Cards[_idx]
+		_rev = ''
+		if TOINT(_card[0]) > 100 {
+			_rev = '逆'
+		}
+		_talk += GetCardDisplayName(_card) + '\n[150]'
+		_talk += EVAL('占い解説'+_card[1]) + '\n[150]'
+		_talk += EVAL('占い解説'+_card[2]+_rev) + '\n[150]'
+		_emotion = Fortune_History_Emotions[_idx]
+		_talk += '> ' + GetEmotionDisplayName(_emotion) + '\n[150]'
+		_talk += EVAL('占い追加語り'+_card[2]+_rev+_emotion)
+	}
+	else {
+		_talk += 'スリーカード'
+		_cards = SPLIT(Fortune_History_Cards[_idx], '|')
+		_emotions = SPLIT(Fortune_History_Emotions[_idx], '|')
+		_labels = ('過去', '現在', '未来')
+		for _i=0; _i<3; _i++ {
+			_card = _cards[_i]
+			_rev = ''
+			if TOINT(_card[0]) > 100 {
+				_rev = '逆'
+			}
+			_talk += '\n[150]【' + _labels[_i] + '】' + GetCardDisplayName(_card) + ' ────────\n[150]'
+			_talk += EVAL('占い解説'+_card[1]) + '\n[150]'
+			_talk += EVAL('占い解説'+_card[2]+_rev) + '\n[150]'
+			_talk += '> ' + GetEmotionDisplayName(_emotions[_i]) + '\n[150]'
+			_talk += EVAL('占い追加語り'+_card[2]+_rev+_emotions[_i])
+		}
+	}
+
+	_talk += '\n\_n\f[color,disable]────────────────────\f[default]\_n\n'
+	_talk += '\![*]\q[一覧に戻る　　　　　,OnFortune_HistoryPage]\n'
+	_talk += '\![*]\q[最初に戻る　　　　　,On占いトップメニュー]'
+	_talk
+}
+
+OnFortune_HistoryDeleteMode
+{
+	Fortune_HistoryDeletePage = 0
+	'\![raise,OnFortune_HistoryDeleteModeView]'
+}
+
+OnFortune_HistoryDeleteModeView
+{
+	_size = ARRAYSIZE(Fortune_History_Time)
+
+	if _size == 0 {
+		_talk = '\![set,balloontimeout,0]\*\0\s[120]\c\_q'
+		_talk += '消すものが無いミャ。\n\n'
+		_talk += '\![*]\q[戻る　　　　　　　　,On占いの履歴を見せて]'
+		_talk
+		return
+	}
+
+	_perpage = 6
+	_maxpage = (_size - 1) / _perpage
+	_page = Fortune_HistoryDeletePage
+	if _page < 0 {
+		_page = 0
+	}
+	if _page > _maxpage {
+		_page = _maxpage
+	}
+
+	_talk = '\![set,balloontimeout,0]\*\0\s[140]\c\_q'
+	_talk += '消したい記録を選ぶミャ。'
+	_talk += '\n\_n\f[color,disable]────────────────────\f[default]\_n\n'
+
+	_start = _size - 1 - (_page * _perpage)
+	_end = _start - _perpage + 1
+	if _end < 0 {
+		_end = 0
+	}
+
+	for _i=_start; _i>=_end; _i-- {
+		_date = FormatHistoryDate(Fortune_History_Time[_i])
+		_type = '[1]'
+		if Fortune_History_Type[_i] == '3' {
+			_type = '[3]'
+		}
+		_subj = Fortune_History_Subject[_i]
+		if _subj == '' {
+			_subj = '(無題)'
+		}
+		_talk += '\![*]\__q[OnFortune_HistoryDeleteConfirm,' + TOSTR(_i) + ']'
+		_talk += _date + ' ' + _type + ' ' + _subj
+		_talk += '\__q\n'
+	}
+
+	_talk += '\_l[0,0]\n[800]\_n\f[color,disable]────────────────────\f[default]\_n\n'
+
+	// ページ送りボタンとページ位置
+	if _page > 0 {
+		_talk += '\__q[OnFortune_HistoryDeletePagePrev][＜前]\__q '
+	}
+	else {
+		_talk += '\f[color,disable][＜前]\f[default] '
+	}
+	_talk += '(' + TOSTR(_page+1) + '/' + TOSTR(_maxpage+1) + ') '
+	if _page < _maxpage {
+		_talk += '\__q[OnFortune_HistoryDeletePageNext][次＞]\__q '
+	}
+	else {
+		_talk += '\f[color,disable][次＞]\f[default] '
+	}
+
+	_talk += '\![*]\q[やめる　,On占いの履歴を見せて]'
+	_talk
+}
+
+OnFortune_HistoryDeletePagePrev
+{
+	Fortune_HistoryDeletePage = Fortune_HistoryDeletePage - 1
+	'\![raise,OnFortune_HistoryDeleteModeView]'
+}
+
+OnFortune_HistoryDeletePageNext
+{
+	Fortune_HistoryDeletePage = Fortune_HistoryDeletePage + 1
+	'\![raise,OnFortune_HistoryDeleteModeView]'
+}
+
+OnFortune_HistoryDeleteConfirm
+{
+	_idx = TOINT(reference[0])
+
+	_subj = Fortune_History_Subject[_idx]
+	if _subj == '' {
+		_subj = '(無題)'
+	}
+
+	_talk = '\![set,balloontimeout,0]\*\0\s[142]\c\_q'
+	_talk += '『' + _subj + '』の記録を消すミャ？\n'
+	_talk += FormatFullDate(Fortune_History_Time[_idx]) + '\n\n'
+	_talk += '\![*]\q[消す　　　　　　　　,OnFortune_HistoryDelete,' + TOSTR(_idx) + ']\n'
+	_talk += '\![*]\q[やめる　　　　　　　,OnFortune_HistoryDeleteModeView]'
+	_talk
+}
+
+OnFortune_HistoryDelete
+{
+	_idx = TOINT(reference[0])
+
+	// 並列配列の同一インデックスを削除
+	Fortune_History_Time[_idx] = IARRAY
+	Fortune_History_Subject[_idx] = IARRAY
+	Fortune_History_Type[_idx] = IARRAY
+	Fortune_History_Cards[_idx] = IARRAY
+	Fortune_History_Emotions[_idx] = IARRAY
+
+	_talk = '\![set,balloontimeout,0]\*\0\s[163]\c\_q'
+	_talk += '消したミャ。\n\n'
+	_talk += '\![*]\q[削除を続ける　　　　,OnFortune_HistoryDeleteModeView]\n'
+	_talk += '\![*]\q[一覧に戻る　　　　　,On占いの履歴を見せて]\n'
+	_talk += '\![*]\q[最初に戻る　　　　　,On占いトップメニュー]'
+	_talk
+}
+
+//********************************
+// ワンオラクル（一枚引き）
+//********************************
+
+OnFortune_One_Start
+{
+	// マウスに対する反応＆キー押下に対する反応を止めるフラグ
+	割り込み防止フラグ = 1
+
+	// 変数を初期化
+	Fortune_DrawnCards = IARRAY
+	Fortune_DeckCards = IARRAY
+
+	// \![set,balloontimeout,0]でバルーンが消えないように
+	// \![enter,nouserbreakmode]でスクリプトブレーク防止
+	// \*で選択肢タイムアウト防止
+	_talk = '\*\1\s[2000]\0\s[113]'
+	_talk += '\![enter,nouserbreakmode]\![set,balloontimeout,0]'
+	_talk += '机を出したミャ。\w9\n'
+	_talk += '見えにくかったら、\w5今のうちに調整するミャ。\n[150]\_q'
+	_talk += '\![*]\__q[OnFortune_One_SubjectInput]進む　　　　　　　　\__q'
+	_talk
+}
+
+OnFortune_One_SubjectInput
+{
+	Fortune_CurrentType = '1'
+	Fortune_CurrentSubject = ''
+	Fortune_CurrentCards = IARRAY
+	Fortune_CurrentEmotions = IARRAY
+
+	_talk = '\![set,balloontimeout,0]\*\0\s[113]\c'
+	_talk += '何について占うか、名前をつけておくミャ？\n'
+	_talk += '（あとで結果を振り返るときに使うミャ）\_q\n\n'
+	_talk += BuildSubjectChoices('OnFortune_One_SubjectSelected', 'OnFortune_One_SubjectInputBox', 'OnFortune_One_SubjectSkip')
+	_talk
+}
+
+OnFortune_One_SubjectSelected
+{
+	Fortune_CurrentSubject = reference[0]
+	'\![raise,OnFortune_One_2]'
+}
+
+OnFortune_One_SubjectInputBox
+{
+	'\![open,inputbox,OnFortune_One_SubjectInputted,-1]'
+}
+
+OnFortune_One_SubjectInputted
+{
+	if reference[0] != '' {
+		Fortune_CurrentSubject = SHIORI3FW.EscapeAllTags(reference[0])
+	}
+	'\![raise,OnFortune_One_2]'
+}
+
+OnFortune_One_SubjectSkip
+{
+	Fortune_CurrentSubject = '(無題)'
+	'\![raise,OnFortune_One_2]'
+}
+
+OnFortune_One_2
+{
+	// この変数が0以外だと、カード選択後にその関数名に遷移する
+	Fortune_DrawWaiting = 'OnFortune_One_3'
+	// デッキをシャッフルする
+	OnFortune_DeckShuffle()
+
+	_talk = '\![set,balloontimeout,0]'
+	_talk += '\0占いたい事柄を思い浮かべるミャ。\w9\n'
+	_talk += 'そんでもって、\w5カードを一枚引くミャ。\1\i[0]'
+	_talk
+}
+
+OnFortune_One_3
+{
+	// カード選択待機状態を解除
+	Fortune_DrawWaiting = 0
+
+	_card = Fortune_DrawnCards[0] - 1
+	_card = Fortune_DeckCards[_card]
+	_card[3] = ''
+
+	_正逆 = '正'
+	if TOINT(_card[0]) > 100 {
+		_正逆 = '逆'
+		_card[3] = '逆'
+	}
+
+	_comment[0] = EVAL('占い解説'+_card[1])
+	_comment[1] = EVAL('占い解説'+_card[2]+_card[3])
+
+	// \i[1]で並べたカードを消去、\i[998]で中央に伏せたカードを置く
+	// \i[ID]でアニメを表示、\![anim,offset,ID,x座標,y座標]でアニメ位置を調整
+	_talk = '\![set,balloontimeout,0]\*'
+	_talk += "\1\i[998]\![anim,offset,998,%(260+500),%(125+500)]\w9\w9\i[1]\w9\w9"
+	_talk += '\0\cこれミャね。\w9めくるミャ。\n\w9\1\i[1]\w9'
+	_talk += "\1\i[%(TOINT(_card[0])+2000)]\![anim,offset,%(TOINT(_card[0])+2000),%(200+500),%(13+500)]"
+	_talk += "\0…\w5…\w5%(_card[1])の%(_card[2])、\w5%(_正逆)位置ミャね。\w9\w9\w9\w9"
+	_talk += '\n[150]'
+	_talk += _comment[0] + '\w9\w9\w9\w9\n[150]'
+	_talk += _comment[1] + '\w9\w9\w9\w9\n[150]'
+	_talk += 'この結果を、\w5（ユーザ）はどう感じたミャ？\_q\n[150]'
+	_talk += '\![*]\__q[OnFortune_One_4,希望,希望を感じた]希望を感じた\__q\n'
+	_talk += '\![*]\__q[OnFortune_One_4,不安,不安を感じた]不安を感じた\__q\n'
+	_talk += '\![*]\__q[OnFortune_One_4,複雑,複雑な気持ち]複雑な気持ち\__q\n'
+	_talk += '\![*]\__q[OnFortune_One_4,無感,何も感じない]何も感じない\__q'
+
+	_talk
+}
+
+OnFortune_One_4
+{
+	_card = Fortune_DrawnCards[0] - 1
+	_card = Fortune_DeckCards[_card]
+	_card[3] = ''
+
+	if TOINT(_card[0]) > 100 {
+		_card[3] = '逆'
+	}
+
+	// 履歴用にカードと感情を一時保存
+	Fortune_CurrentCards ,= _card[0] + ',' + _card[1] + ',' + _card[2]
+	Fortune_CurrentEmotions ,= reference[0]
+
+	_comment = EVAL('占い追加語り'+_card[2]+_card[3]+reference[0])
+
+	// 履歴比較
+	_prevEmotion = FindMatchingHistory(Fortune_CurrentSubject, Fortune_CurrentCards[0], -1)
+	_compTalk = BuildComparisonTalk(_prevEmotion, reference[0])
+
+	_talk = '\![set,balloontimeout,0]\*\0\c\_q'
+	_talk += '> ' + reference[1] + '\n[150]\w9\_q'
+	if _compTalk != '' {
+		_talk += _compTalk + '\w9\w9\w9\w9\n[150]'
+	}
+	_talk += _comment + "\x\![anim,clear,%(TOINT(_card[0]+2000))]"
+	_talk += '\0\c\s[163]\f[italic,1]' + 占いの擬音 + '\f[default]\w9\w9\n[150]' + 占い後コメント + '\x\![raise,OnFortune_SavePrompt]'
+	_talk
+}
+
+//********************************
+// 保存フロー（ワンオラクル・スリーカード共通）
+//********************************
+
+OnFortune_SavePrompt
+{
+	// 占いが終わった後、結果を保存するか尋ねる
+	_talk = '\![set,balloontimeout,0]\*\0\s[113]\c'
+	_talk += '結果を残しておくミャ？\_q\n\n'
+	_talk += '\![*]\q[はい　　　　　　　　,OnFortune_DoSave]\n'
+	_talk += '\![*]\q[いいえ　　　　　　　,On占いおしまい]\n'
+	_talk
+}
+
+OnFortune_DoSave
+{
+	// 事柄が設定済みならそのまま保存、未設定なら入力を促す
+	if Fortune_CurrentSubject != '' {
+		SaveFortuneRecord
+		_talk = '\![set,balloontimeout,0]\*\0\s[163]\c'
+		_talk += '残しておいたミャ。\x\![raise,On占いおしまい]'
+		_talk
+	}
+	else {
+		// 事柄名の入力を促す
+		_talk = '\![set,balloontimeout,0]\*\0\s[113]\c'
+		_talk += '何について占ったか、名前をつけておくミャ？\_q\n\n'
+		_talk += BuildSubjectChoices('OnFortune_SaveSubjectSelected', 'OnFortune_SaveSubjectInputBox', 'OnFortune_SaveNoSubject')
+		_talk
+	}
+}
+
+OnFortune_SaveSubjectSelected
+{
+	// 過去の事柄名を選択した場合
+	Fortune_CurrentSubject = reference[0]
+	SaveFortuneRecord
+	_talk = '\![set,balloontimeout,0]\*\0\s[163]\c'
+	_talk += '残しておいたミャ。\x\![raise,On占いおしまい]'
+	_talk
+}
+
+OnFortune_SaveSubjectInputBox
+{
+	// 自由入力のinputboxを開く
+	'\![open,inputbox,OnFortune_SaveSubjectInputted,-1]'
+}
+
+OnFortune_SaveSubjectInputted
+{
+	// 自由入力の結果を受け取り
+	if reference[0] != '' {
+		Fortune_CurrentSubject = SHIORI3FW.EscapeAllTags(reference[0])
+	}
+	SaveFortuneRecord
+	_talk = '\![set,balloontimeout,0]\*\0\s[163]\c'
+	_talk += '残しておいたミャ。\x\![raise,On占いおしまい]'
+	_talk
+}
+
+OnFortune_SaveNoSubject
+{
+	Fortune_CurrentSubject = '(無題)'
+	SaveFortuneRecord
+	_talk = '\![set,balloontimeout,0]\*\0\s[163]\c'
+	_talk += '残しておいたミャ。\x\![raise,On占いおしまい]'
+	_talk
+}
+
+On占いおしまい
+{
+	// 読み上げてから占いをおしまいにするためにイベントを分ける
+
+	// カード選択待機状態を解除
+	Fortune_DrawWaiting = 0
+	// マウスに対する反応＆キー押下に対する反応を止めるフラグ
+	割り込み防止フラグ = 0
+
+	// 履歴用一時変数をクリア
+	Fortune_CurrentSubject = ''
+	Fortune_CurrentCards = IARRAY
+	Fortune_CurrentEmotions = IARRAY
+	Fortune_CurrentType = ''
+
+	// デッキ等もクリア
+	Fortune_DeckCards = IARRAY
+	Fortune_DrawnCards = IARRAY
+	Fortune_ThreeCards = IARRAY
+
+	'\![leave,nouserbreakmode]\1\s[10]\![raise,On占いトップメニュー]'
+}
+
+//********************************
+// スリーカード（三枚引き）
+//********************************
+OnFortune_Three_Start
+{
+	// マウスに対する反応＆キー押下に対する反応を止めるフラグ
+	割り込み防止フラグ = 1
+
+	// 変数を初期化
+	Fortune_DrawnCards = IARRAY
+	Fortune_DeckCards = IARRAY
+
+	_talk = '\*\1\s[2000]\0\s[113]'
+	_talk += '\![enter,nouserbreakmode]\![set,balloontimeout,0]'
+	_talk += '机を出したミャ。\w9\n'
+	_talk += '見えにくかったら、\w5今のうちに調整するミャ。\n[150]\_q'
+	_talk += '\![*]\__q[OnFortune_Three_SubjectInput]進む　　　　　　　　\__q'
+	_talk
+}
+
+OnFortune_Three_SubjectInput
+{
+	Fortune_CurrentType = '3'
+	Fortune_CurrentSubject = ''
+	Fortune_CurrentCards = IARRAY
+	Fortune_CurrentEmotions = IARRAY
+
+	_talk = '\![set,balloontimeout,0]\*\0\s[113]\c'
+	_talk += '何について占うか、名前をつけておくミャ？\n'
+	_talk += '（あとで結果を振り返るときに使うミャ）\_q\n\n'
+	_talk += BuildSubjectChoices('OnFortune_Three_SubjectSelected', 'OnFortune_Three_SubjectInputBox', 'OnFortune_Three_SubjectSkip')
+	_talk
+}
+
+OnFortune_Three_SubjectSelected
+{
+	Fortune_CurrentSubject = reference[0]
+	'\![raise,OnFortune_Three_2]'
+}
+
+OnFortune_Three_SubjectInputBox
+{
+	'\![open,inputbox,OnFortune_Three_SubjectInputted,-1]'
+}
+
+OnFortune_Three_SubjectInputted
+{
+	if reference[0] != '' {
+		Fortune_CurrentSubject = SHIORI3FW.EscapeAllTags(reference[0])
+	}
+	'\![raise,OnFortune_Three_2]'
+}
+
+OnFortune_Three_SubjectSkip
+{
+	Fortune_CurrentSubject = '(無題)'
+	'\![raise,OnFortune_Three_2]'
+}
+
+OnFortune_Three_2
+{
+	Fortune_DrawWaiting = 'OnFortune_Three_Pick1'
+	OnFortune_DeckShuffle()
+
+	_talk = '\![set,balloontimeout,0]'
+	_talk += '\0占いたい事柄を思い浮かべるミャ。\w9\n'
+	_talk += 'そんでもって、\w5カードを3枚引くミャ。\w9\n'
+	_talk += 'まず1枚目、過去を表すカードなのミャ。\1\i[0]'
+	_talk
+}
+
+OnFortune_Three_Pick1
+{
+	// OnFortune_DrawがFortune_DrawWaitingを0にリセット済みなので再設定
+	Fortune_DrawWaiting = 'OnFortune_Three_Pick2'
+
+	// 引いたカードを左に裏面配置
+	_talk = '\![set,balloontimeout,0]'
+	_talk += "\1\i[998]\![anim,offset,998,%(100+500),%(125+500)]"
+	_talk += '\0\cいいミャね。\w9あと2枚、次は現在のカードなのミャ。'
+	_talk
+}
+
+OnFortune_Three_Pick2
+{
+	Fortune_DrawWaiting = 'OnFortune_Three_Pick3'
+
+	// 引いたカードを中央に裏面配置
+	_talk = '\![set,balloontimeout,0]'
+	_talk += "\1\i[999]\![anim,offset,999,%(260+500),%(125+500)]"
+	_talk += '\0\cうんうん。\w9もう1枚、未来のカードを引くミャ。'
+	_talk
+}
+
+OnFortune_Three_Pick3
+{
+	Fortune_DrawWaiting = 0
+
+	// 3枚のカード情報を取得
+	_card0 = Fortune_DeckCards[Fortune_DrawnCards[0] - 1]
+	_card1 = Fortune_DeckCards[Fortune_DrawnCards[1] - 1]
+	_card2 = Fortune_DeckCards[Fortune_DrawnCards[2] - 1]
+
+	// 正逆判定
+	if TOINT(_card0[0]) > 100 {
+		_card0[3] = '逆'
+	}
+	else {
+		_card0[3] = ''
+	}
+	if TOINT(_card1[0]) > 100 {
+		_card1[3] = '逆'
+	}
+	else {
+		_card1[3] = ''
+	}
+	if TOINT(_card2[0]) > 100 {
+		_card2[3] = '逆'
+	}
+	else {
+		_card2[3] = ''
+	}
+
+	// 後続関数で参照するために保存
+	Fortune_ThreeCards = IARRAY
+	Fortune_ThreeCards ,= TOSTR(_card0)
+	Fortune_ThreeCards ,= TOSTR(_card1)
+	Fortune_ThreeCards ,= TOSTR(_card2)
+
+	// 履歴用にカードデータを一時保存
+	Fortune_CurrentCards = IARRAY
+	Fortune_CurrentCards ,= _card0[0] + ',' + _card0[1] + ',' + _card0[2]
+	Fortune_CurrentCards ,= _card1[0] + ',' + _card1[1] + ',' + _card1[2]
+	Fortune_CurrentCards ,= _card2[0] + ',' + _card2[1] + ',' + _card2[2]
+
+	// 引いたカードを右に裏面配置
+	_talk = '\![set,balloontimeout,0]'
+	_talk += "\1\i[1000]\![anim,offset,1000,%(420+500),%(125+500)]"
+	_talk += '\0\c3枚揃ったミャ。\w9\w9'
+	// デッキ消去
+	_talk += '\1\i[1]\w9\w9'
+	_talk += '\0\n過去から順にめくっていくミャ。\w9\w9'
+	_talk += '\x\![raise,OnFortune_Three_ExplainPast]'
+
+	_talk
+}
+
+OnFortune_Three_ExplainPast
+{
+	_card = Fortune_ThreeCards[0]
+	_card[3] = ''
+
+	_正逆 = '正'
+	if TOINT(_card[0]) > 100 {
+		_正逆 = '逆'
+		_card[3] = '逆'
+	}
+
+	_comment[0] = EVAL('占い解説'+_card[1])
+	_comment[1] = EVAL('占い解説'+_card[2]+_card[3])
+
+	// 左の裏面カードを消してめくる（小カード表面を同位置に表示）
+	_id = TOINT(_card[0]) + 1000
+	_talk = '\![set,balloontimeout,0]\*'
+	_talk += '\1\![anim,clear,998]'
+	_talk += "\1\i[%(_id)]\![anim,offset,%(_id),%(100+500),%(125+500)]"
+	// 拡大カードを左位置に表示
+	_talk += "\1\i[%(TOINT(_card[0])+2000)]\![anim,offset,%(TOINT(_card[0])+2000),%(10+500),%(13+500)]"
+	_talk += "\0\c【過去】\w5%(_card[1])の%(_card[2])、\w5%(_正逆)位置ミャ。\w9\w9\w9\w9"
+	_talk += '\n[150]'
+	_talk += _comment[0] + '\w9\w9\w9\w9\n[150]'
+	_talk += _comment[1] + '\w9\w9\w9\w9\n[150]'
+	_talk += 'この結果を、\w5（ユーザ）はどう感じたミャ？\_q\n[150]'
+	_talk += '\![*]\__q[OnFortune_Three_EmotionPast,希望,希望を感じた]希望を感じた\__q\n'
+	_talk += '\![*]\__q[OnFortune_Three_EmotionPast,不安,不安を感じた]不安を感じた\__q\n'
+	_talk += '\![*]\__q[OnFortune_Three_EmotionPast,複雑,複雑な気持ち]複雑な気持ち\__q\n'
+	_talk += '\![*]\__q[OnFortune_Three_EmotionPast,無感,何も感じない]何も感じない\__q'
+
+	_talk
+}
+
+OnFortune_Three_EmotionPast
+{
+	// 履歴用に感情を一時保存
+	Fortune_CurrentEmotions ,= reference[0]
+
+	_card = Fortune_ThreeCards[0]
+	_card[3] = ''
+	if TOINT(_card[0]) > 100 {
+		_card[3] = '逆'
+	}
+
+	_comment = EVAL('占い追加語り'+_card[2]+_card[3]+reference[0])
+
+	// 履歴比較
+	_prevEmotion = FindMatchingHistory(Fortune_CurrentSubject, Fortune_CurrentCards[0], 0)
+	_compTalk = BuildComparisonTalk(_prevEmotion, reference[0])
+
+	_talk = '\![set,balloontimeout,0]\*\0\c\_q'
+	_talk += '> ' + reference[1] + '\n[150]\w9\_q'
+	if _compTalk != '' {
+		_talk += _compTalk + '\w9\w9\w9\w9\n[150]'
+	}
+	_talk += _comment
+	// 拡大カードをクリア（小カード表面はそのまま残す）
+	_talk += "\x\1\![anim,clear,%(TOINT(_card[0])+2000)]"
+	_talk += '\![raise,OnFortune_Three_ExplainPresent]'
+
+	_talk
+}
+
+OnFortune_Three_ExplainPresent
+{
+	_card = Fortune_ThreeCards[1]
+	_card[3] = ''
+
+	_正逆 = '正'
+	if TOINT(_card[0]) > 100 {
+		_正逆 = '逆'
+		_card[3] = '逆'
+	}
+
+	_comment[0] = EVAL('占い解説'+_card[1])
+	_comment[1] = EVAL('占い解説'+_card[2]+_card[3])
+
+	// 中央の裏面カードを消してめくる（小カード表面を同位置に表示）
+	_id = TOINT(_card[0]) + 1000
+	_talk = '\![set,balloontimeout,0]\*'
+	_talk += '\1\![anim,clear,999]'
+	_talk += "\1\i[%(_id)]\![anim,offset,%(_id),%(260+500),%(125+500)]"
+	// 拡大カードを中央位置に表示
+	_talk += "\1\i[%(TOINT(_card[0])+2000)]\![anim,offset,%(TOINT(_card[0])+2000),%(200+500),%(13+500)]"
+	_talk += "\0\c【現在】\w5%(_card[1])の%(_card[2])、\w5%(_正逆)位置ミャ。\w9\w9\w9\w9"
+	_talk += '\n[150]'
+	_talk += _comment[0] + '\w9\w9\w9\w9\n[150]'
+	_talk += _comment[1] + '\w9\w9\w9\w9\n[150]'
+	_talk += 'この結果を、\w5（ユーザ）はどう感じたミャ？\_q\n[150]'
+	_talk += '\![*]\__q[OnFortune_Three_EmotionPresent,希望,希望を感じた]希望を感じた\__q\n'
+	_talk += '\![*]\__q[OnFortune_Three_EmotionPresent,不安,不安を感じた]不安を感じた\__q\n'
+	_talk += '\![*]\__q[OnFortune_Three_EmotionPresent,複雑,複雑な気持ち]複雑な気持ち\__q\n'
+	_talk += '\![*]\__q[OnFortune_Three_EmotionPresent,無感,何も感じない]何も感じない\__q'
+
+	_talk
+}
+
+OnFortune_Three_EmotionPresent
+{
+	// 履歴用に感情を一時保存
+	Fortune_CurrentEmotions ,= reference[0]
+
+	_card = Fortune_ThreeCards[1]
+	_card[3] = ''
+	if TOINT(_card[0]) > 100 {
+		_card[3] = '逆'
+	}
+
+	_comment = EVAL('占い追加語り'+_card[2]+_card[3]+reference[0])
+
+	// 履歴比較
+	_prevEmotion = FindMatchingHistory(Fortune_CurrentSubject, Fortune_CurrentCards[1], 1)
+	_compTalk = BuildComparisonTalk(_prevEmotion, reference[0])
+
+	_talk = '\![set,balloontimeout,0]\*\0\c\_q'
+	_talk += '> ' + reference[1] + '\n[150]\w9\_q'
+	if _compTalk != '' {
+		_talk += _compTalk + '\w9\w9\w9\w9\n[150]'
+	}
+	_talk += _comment
+	// 拡大カードをクリア（小カード表面はそのまま残す）
+	_talk += "\x\1\![anim,clear,%(TOINT(_card[0])+2000)]"
+	_talk += '\![raise,OnFortune_Three_ExplainFuture]'
+
+	_talk
+}
+
+OnFortune_Three_ExplainFuture
+{
+	_card = Fortune_ThreeCards[2]
+	_card[3] = ''
+
+	_正逆 = '正'
+	if TOINT(_card[0]) > 100 {
+		_正逆 = '逆'
+		_card[3] = '逆'
+	}
+
+	_comment[0] = EVAL('占い解説'+_card[1])
+	_comment[1] = EVAL('占い解説'+_card[2]+_card[3])
+
+	// 右の裏面カードを消してめくる（小カード表面を同位置に表示）
+	_id = TOINT(_card[0]) + 1000
+	_talk = '\![set,balloontimeout,0]\*'
+	_talk += '\1\![anim,clear,1000]'
+	_talk += "\1\i[%(_id)]\![anim,offset,%(_id),%(420+500),%(125+500)]"
+	// 拡大カードを右位置に表示
+	_talk += "\1\i[%(TOINT(_card[0])+2000)]\![anim,offset,%(TOINT(_card[0])+2000),%(390+500),%(13+500)]"
+	_talk += "\0\c【未来】\w5%(_card[1])の%(_card[2])、\w5%(_正逆)位置ミャ。\w9\w9\w9\w9"
+	_talk += '\n[150]'
+	_talk += _comment[0] + '\w9\w9\w9\w9\n[150]'
+	_talk += _comment[1] + '\w9\w9\w9\w9\n[150]'
+	_talk += 'この結果を、\w5（ユーザ）はどう感じたミャ？\_q\n[150]'
+	_talk += '\![*]\__q[OnFortune_Three_EmotionFuture,希望,希望を感じた]希望を感じた\__q\n'
+	_talk += '\![*]\__q[OnFortune_Three_EmotionFuture,不安,不安を感じた]不安を感じた\__q\n'
+	_talk += '\![*]\__q[OnFortune_Three_EmotionFuture,複雑,複雑な気持ち]複雑な気持ち\__q\n'
+	_talk += '\![*]\__q[OnFortune_Three_EmotionFuture,無感,何も感じない]何も感じない\__q'
+
+	_talk
+}
+
+OnFortune_Three_EmotionFuture
+{
+	// 履歴用に感情を一時保存
+	Fortune_CurrentEmotions ,= reference[0]
+
+	_card = Fortune_ThreeCards[2]
+	_card[3] = ''
+	if TOINT(_card[0]) > 100 {
+		_card[3] = '逆'
+	}
+
+	_comment = EVAL('占い追加語り'+_card[2]+_card[3]+reference[0])
+
+	// 履歴比較
+	_prevEmotion = FindMatchingHistory(Fortune_CurrentSubject, Fortune_CurrentCards[2], 2)
+	_compTalk = BuildComparisonTalk(_prevEmotion, reference[0])
+
+	_talk = '\![set,balloontimeout,0]\*\0\c\_q'
+	_talk += '> ' + reference[1] + '\n[150]\w9\_q'
+	if _compTalk != '' {
+		_talk += _compTalk + '\w9\w9\w9\w9\n[150]'
+	}
+	_talk += _comment
+	_talk += "\x\1\![anim,clear,%(TOINT(_card[0])+2000)]"
+	_talk += '\![raise,OnFortune_Three_End]'
+	_talk
+}
+
+OnFortune_Three_End
+{
+	_talk = '\![set,balloontimeout,0]\*'
+	_talk += '\0\s[163]\f[italic,1]' + 占いの擬音 + '\f[default]\w9\w9\n[150]' + 占い後コメント + '\x\![raise,OnFortune_SavePrompt]'
+	_talk
+}
+
+//********************************
+// デッキをシャッフル
+//********************************
+
+OnFortune_DeckShuffle
+{
+	Fortune_DeckCards = IARRAY
+
+	// 33枚すべてをデッキに格納
+	for _i=0; _i<33; _i++ {
+		_card = Fortune_CardsList[_i]
+		// 正逆をランダム付与
+		_card[0] = TOSTR(TOINT(_card[0])+RAND(2)*100)
+		Fortune_DeckCards ,= TOSTR(_card)
+	}
+
+	// フィッシャーイェーツシャッフル
+	for _i=32; _i>=1; _i-- {
+		_j = RAND(_i+1)
+		_tmp = Fortune_DeckCards[_i]
+		Fortune_DeckCards[_i] = Fortune_DeckCards[_j]
+		Fortune_DeckCards[_j] = _tmp
+	}
+}
+
+//********************************
+// カードドロー
+//********************************
+
+// カードドロー振り分け
+ダブルクリック1
+{
+	クリック1
+}
+
+クリック1
+{
+	if Fortune_DrawWaiting != 0 {
+		OnFortune_Draw(reference[0], reference[1])
+	}
+}
+
+// クリック座標からカード番号を特定して引く
+OnFortune_Draw
+{
+	_mx = TOINT(_argv[0])
+	_my = TOINT(_argv[1])
+
+	// y座標がカード領域外なら何もしない（カードはy:0～109）
+	if _my < 0 || _my > 109 {
+		return
+	}
+
+	// カードNの左端x = 20 + (N-1)*15
+	// 1～32枚目は15px幅のスリットが見えている、33枚目のみ全幅80px
+	// 全体の右端 = 20 + 32*15 + 79 = 579
+	_hit = -1
+
+	if _mx < 20 || _mx > 579 {
+		// カード領域外
+	}
+	elseif _mx >= 20 + 32 * 15 {
+		// 33枚目の領域（x: 500～579）
+		_hit = 33
+	}
+	else {
+		// 1～32枚目：x座標からカード番号を算出
+		_hit = (_mx - 20) / 15 + 1
+	}
+
+	// 既に引かれたカードなら、下に見えている左隣のカードを探す
+	// （カードは左から右に重なっているため、右のカードが消えると左隣が露出する）
+	// ただしクリック座標がそのカードの物理的な右端を超えていたら無効
+	// カードNの右端x = 20 + (N-1)*15 + 79 = N*15 + 84
+	while _hit >= 1 {
+		_already = 0
+		for _j=0; _j<ARRAYSIZE(Fortune_DrawnCards); _j++ {
+			if Fortune_DrawnCards[_j] == _hit {
+				_already = 1
+				break
+			}
+		}
+		if _already == 0 {
+			if _mx <= _hit * 15 + 84 {
+				break
+			}
+			// クリック座標がこのカードの右端を超えている → 無効
+			_hit = -1
+			break
+		}
+		_hit--
+	}
+	if _hit < 1 {
+		_hit = -1
+	}
+
+	// カードが見つからなければ何もしない
+	if _hit == -1 {
+		return
+	}
+
+	// 引いたカードを配列末尾に追加
+	Fortune_DrawnCards ,= _hit
+
+	// 引かれたカードを画面から消去
+	"\1\![anim,clear,%(_hit+100)]"
+	--
+	if ISFUNC(Fortune_DrawWaiting) != 0 {
+		_func = Fortune_DrawWaiting
+		// カード引き待機状態を解除
+		Fortune_DrawWaiting = 0
+		// 戻る変数を実行
+		EVAL(_func)
+		return
+	}
+
+	// カード選択待機状態を解除
+	Fortune_DrawWaiting = 0
+	// マウスに対する反応＆キー押下に対する反応を止めるフラグ
+	割り込み防止フラグ = 0
+	// \![enter,nouserbreakmode]でスクリプトブレーク防止を解除
+	<<"
+	＠スクリプト：\![leave,nouserbreakmode]\1\s[10]
+	ぷ１４０：占い中断ミャ、何かがおかしいミャ。
+	ぷ１６０：ごめんミャ……。
+	ぷ１４０：もしよかったら、ぷーの作者に
+	ぷ：報告してやって欲しいミャ。
+	">>
+}
+
+//********************************
+// 履歴ヘルパー関数
+//********************************
+
+// 履歴からユニークな事柄名を最新順に最大10件取得
+GetUniqueSubjects
+{
+	_list = IARRAY
+	_count = ARRAYSIZE(Fortune_History_Subject)
+
+	for _i=_count-1; _i>=0; _i-- {
+		_subj = Fortune_History_Subject[_i]
+		if _subj == '' || _subj == '(無題)' {
+			continue
+		}
+
+		// 重複チェック
+		_found = 0
+		for _j=0; _j<ARRAYSIZE(_list); _j++ {
+			if _list[_j] == _subj {
+				_found = 1
+				break
+			}
+		}
+
+		if _found == 0 {
+			_list ,= _subj
+			if ARRAYSIZE(_list) >= 10 {
+				break
+			}
+		}
+	}
+
+	_list
+}
+
+// 現在の占いデータを履歴に保存
+SaveFortuneRecord
+{
+	// 30件を超えていたら古いものを削除（FIFO）
+	while ARRAYSIZE(Fortune_History_Time) >= 30 {
+		Fortune_History_Time[0] = IARRAY
+		Fortune_History_Subject[0] = IARRAY
+		Fortune_History_Type[0] = IARRAY
+		Fortune_History_Cards[0] = IARRAY
+		Fortune_History_Emotions[0] = IARRAY
+	}
+
+	// タイムスタンプ
+	Fortune_History_Time ,= TOSTR(GETSECCOUNT)
+
+	// 事柄名
+	_subj = Fortune_CurrentSubject
+	if _subj == '' {
+		_subj = '(無題)'
+	}
+	Fortune_History_Subject ,= _subj
+
+	// 占い種別
+	Fortune_History_Type ,= Fortune_CurrentType
+
+	// カードデータ
+	if Fortune_CurrentType == '1' {
+		Fortune_History_Cards ,= Fortune_CurrentCards[0]
+	}
+	else {
+		Fortune_History_Cards ,= Fortune_CurrentCards[0] + '|' + Fortune_CurrentCards[1] + '|' + Fortune_CurrentCards[2]
+	}
+
+	// 感情データ
+	if Fortune_CurrentType == '1' {
+		Fortune_History_Emotions ,= Fortune_CurrentEmotions[0]
+	}
+	else {
+		Fortune_History_Emotions ,= Fortune_CurrentEmotions[0] + '|' + Fortune_CurrentEmotions[1] + '|' + Fortune_CurrentEmotions[2]
+	}
+}
+
+// GETSECCOUNTの値 → "MM/dd" 形式
+FormatHistoryDate
+{
+	_date = GETTIME(TOINT(_argv[0]))
+	STRFORM('$02d', _date[1]) + '/' + STRFORM('$02d', _date[2])
+}
+
+// GETSECCOUNTの値 → "YYYY年MM月dd日 HH:mm" 形式
+FormatFullDate
+{
+	_date = GETTIME(TOINT(_argv[0]))
+	TOSTR(_date[0]) + '年' + STRFORM('$02d', _date[1]) + '月' + STRFORM('$02d', _date[2]) + '日 ' + STRFORM('$02d', _date[4]) + ':' + STRFORM('$02d', _date[5])
+}
+
+// カードデータ → "赤の生命 正位置" 形式
+GetCardDisplayName
+{
+	_card = _argv[0]
+	// カンマ区切りで自動分割: _card[0]=cardnum, _card[1]=category, _card[2]=name
+	_pos = '正位置'
+	if TOINT(_card[0]) > 100 {
+		_pos = '逆位置'
+	}
+	_card[1] + 'の' + _card[2] + ' ' + _pos
+}
+
+// 感情コード → 表示名
+GetEmotionDisplayName
+{
+	_em = _argv[0]
+	if _em == '希望' {
+		'希望を感じた'
+	}
+	elseif _em == '不安' {
+		'不安を感じた'
+	}
+	elseif _em == '複雑' {
+		'複雑な気持ち'
+	}
+	elseif _em == '無感' {
+		'何も感じない'
+	}
+	else {
+		_em
+	}
+}
+
+// 事柄選択肢のスクリプトを生成
+// 引数: _argv[0]=選択時callback, _argv[1]=自由入力callback, _argv[2]=スキップcallback
+BuildSubjectChoices
+{
+	_unique = GetUniqueSubjects()
+	_talk = ''
+
+	if ARRAYSIZE(_unique) > 0 {
+		for _i=0; _i<ARRAYSIZE(_unique); _i++ {
+			_subj = _unique[_i]
+			_talk += '\![*]\__q[' + _argv[0] + ',' + SHIORI3FW.EscapeAllTags(_subj) + ']' + _subj + '\__q\n'
+		}
+	}
+
+	_talk += '\![*]\__q[' + _argv[1] + ']自由入力\__q\n'
+	_talk += '\![*]\__q[' + _argv[2] + ']決めない\__q'
+
+	_talk
+}
+
+// 履歴から一致するカードを検索し、前回の感情コードを返す
+// _argv[0]: 事柄名, _argv[1]: カードデータ("番号,色,カード名"), _argv[2]: 位置(-1=ワンオラクル, 0/1/2=スリーカード)
+FindMatchingHistory
+{
+	_subject = _argv[0]
+	_cardData = _argv[1]
+	_position = TOINT(_argv[2])
+	_size = ARRAYSIZE(Fortune_History_Time)
+
+	for _i=_size-1; _i>=0; _i-- {
+		// 事柄名が不一致なら次へ
+		if Fortune_History_Subject[_i] != _subject {
+			continue
+		}
+
+		if _position == -1 {
+			// ワンオラクル
+			if Fortune_History_Type[_i] != '1' {
+				continue
+			}
+			if Fortune_History_Cards[_i] == _cardData {
+				Fortune_History_Emotions[_i]
+				return
+			}
+		}
+		else {
+			// スリーカード
+			if Fortune_History_Type[_i] != '3' {
+				continue
+			}
+			_cards = SPLIT(Fortune_History_Cards[_i], '|')
+			_emotions = SPLIT(Fortune_History_Emotions[_i], '|')
+			if _cards[_position] == _cardData {
+				_emotions[_position]
+				return
+			}
+		}
+	}
+
+	// 一致なし
+	''
+}
+
+// 前回の感情と今回の感情を比較し、比較トークを返す
+// _argv[0]: 前回の感情コード（空文字なら比較対象なし）, _argv[1]: 今回の感情コード
+BuildComparisonTalk
+{
+	_prevEmotion = _argv[0]
+	_currentEmotion = _argv[1]
+
+	if _prevEmotion == '' {
+		''
+		return
+	}
+
+	_prevName = GetEmotionDisplayName(_prevEmotion)
+
+	_talks = IARRAY
+	if _prevEmotion == _currentEmotion {
+		// 一致時トーク
+		_talks ,= 'このカード、前にも出たミャ。あの時の（ユーザ）も『' + _prevName + '』だったミャ。\n変わらないものもあるのミャ。'
+		_talks ,= 'このカード、前にも出たミャ。あの時も『' + _prevName + '』だったミャ。\n（ユーザ）の中で、そこは揺るがないミャね。'
+		_talks ,= 'このカード、前にも出たミャ。あの時の（ユーザ）も、同じ気持ちだったみたいミャ。\nそれはそれで、大事なことミャ。'
+	}
+	else {
+		// 不一致時トーク
+		_talks ,= 'このカード、前にも出たミャ。あの時の（ユーザ）は『' + _prevName + '』だったミャ。\n今とは違うミャね。（ユーザ）の中で、何か動いたのかもしれないミャ。'
+		_talks ,= 'このカード、前にも出たミャ。あの時は『' + _prevName + '』だったミャ。\n変わったミャね。同じカードでも、受け取り方は変わるのミャ。'
+		_talks ,= 'このカード、前にも出たミャ。あの時の（ユーザ）は『' + _prevName + '』だったみたいミャ。\n今回は違う気持ちミャね。変わること自体は、悪くないミャ。'
+	}
+	_talks[RAND(ARRAYSIZE(_talks))]
+}

@@ -1,0 +1,13 @@
+charset,UTF-8
+type,ghost
+
+name,うみうし占い堂
+sakura.name,プラセボ
+kero.name,天上天下唯我独尊ミャ
+
+craftman,lost_nd_xxx
+craftmanw,ろすえん
+
+icon,fish.ico
+shiori,yaya.dll
+homeurl,https://raw.githubusercontent.com/lost-nd-xxx/FortuneTeller_FiniteSeaslugTheorem/main/
