@@ -10,6 +10,8 @@ On占いトップメニュー
 	Fortune_DrawWaiting = 0
 	// マウスに対する反応＆キー押下に対する反応を止めるフラグ
 	割り込み防止フラグ = 0
+	// スケーリング値を初期化（100 = 等倍）
+	Fortune_Scaling = 100
 
 	<<"
 	＠スクリプト：\![close,inputbox,__SYSTEM_ALL_INPUT__]\n[150]
@@ -45,8 +47,7 @@ On占いについて教えて
 	ぷ１１０：当たるか当たらないかじゃミャくて、
 	ぷ：日々を越えるための杖みたいなもの。
 	改行多めぷ１６３：（ユーザ）の気分が少しでもアガれば、
-	ぷ：ぷーはそれでいいミャ。
-	＠スクリプト：\x\![raise,On占いトップメニュー]
+	ぷ：ぷーはそれでいいミャ。\_w[4000]\![raise,On占いトップメニュー]
 	">>
 }
 
@@ -342,8 +343,26 @@ OnFortune_One_Start
 	_talk += '\![enter,nouserbreakmode]\![set,balloontimeout,0]'
 	_talk += '机を出したミャ。\w9\n'
 	_talk += '見えにくかったら、\w5今のうちに調整するミャ。\n[150]\_q'
-	_talk += '\![*]\__q[OnFortune_One_SubjectInput]進む　　　　　　　　\__q'
+	_talk += '\![*]\__q[OnFortune_GetScaling_One]進む　　　　　　　　\__q'
 	_talk
+}
+
+// スケーリング値とrectを取得してからワンオラクル入力画面に遷移
+OnFortune_GetScaling_One
+{
+	"\![get,property,OnFortune_RecvScaling_One,currentghost.scope(1).scaling]"
+}
+
+OnFortune_RecvScaling_One
+{
+	_val = TOINT(reference[0][0])
+	if _val > 0 {
+		Fortune_Scaling = _val
+	}
+	else {
+		Fortune_Scaling = 100
+	}
+	'\![raise,OnFortune_One_SubjectInput]'
 }
 
 OnFortune_One_SubjectInput
@@ -573,8 +592,26 @@ OnFortune_Three_Start
 	_talk += '\![enter,nouserbreakmode]\![set,balloontimeout,0]'
 	_talk += '机を出したミャ。\w9\n'
 	_talk += '見えにくかったら、\w5今のうちに調整するミャ。\n[150]\_q'
-	_talk += '\![*]\__q[OnFortune_Three_SubjectInput]進む　　　　　　　　\__q'
+	_talk += '\![*]\__q[OnFortune_GetScaling_Three]進む　　　　　　　　\__q'
 	_talk
+}
+
+// スケーリング値を取得してからスリーカード入力画面に遷移
+OnFortune_GetScaling_Three
+{
+	"\![get,property,OnFortune_RecvScaling_Three,currentghost.scope(1).scaling]"
+}
+
+OnFortune_RecvScaling_Three
+{
+	_val = TOINT(reference[0][0])
+	if _val > 0 {
+		Fortune_Scaling = _val
+	}
+	else {
+		Fortune_Scaling = 100
+	}
+	'\![raise,OnFortune_Three_SubjectInput]'
 }
 
 OnFortune_Three_SubjectInput
@@ -939,8 +976,27 @@ OnFortune_DeckShuffle
 クリック1
 {
 	if Fortune_DrawWaiting != 0 {
-		OnFortune_Draw(reference[0], reference[1])
+		// スケーリング時にローカル座標がずれる問題への対応
+		// スクリーン座標とrectから自前でローカル座標を計算する
+		"\![get,property,OnFortune_DrawFromScreen,system.cursor.pos,currentghost.scope(1).rect]"
 	}
+}
+
+// スクリーン座標とrectからローカル座標を計算してカード判定
+OnFortune_DrawFromScreen
+{
+	_cx = TOINT(reference[0][0])
+	_cy = TOINT(reference[0][1])
+	_rl = TOINT(reference[1][0])
+	_rt = TOINT(reference[1][1])
+
+	_s = Fortune_Scaling
+	if _s <= 0 { _s = 100 }
+
+	_mx = TOINT((_cx - _rl) * 100 / _s)
+	_my = TOINT((_cy - _rt) * 100 / _s)
+
+	OnFortune_Draw(_mx, _my)
 }
 
 // クリック座標からカード番号を特定して引く

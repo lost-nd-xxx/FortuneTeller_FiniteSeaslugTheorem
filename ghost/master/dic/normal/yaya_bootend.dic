@@ -42,6 +42,7 @@ OnGhostUnload
 	Fortune_DeckCards = IARRAY
 	Fortune_DrawnCards = IARRAY
 	Fortune_ThreeCards = IARRAY
+	Fortune_Scaling = 100
 }
 
 起動時に経過日数を計算
